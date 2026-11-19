@@ -33,6 +33,10 @@ import { join } from "node:path";
 // Standard-normal quantiles for the five scored levels.
 const Z = [-1.6448536269514722, -0.6744897501960817, 0, 0.6744897501960817, 1.6448536269514722];
 const RELEASE_START_MS = Date.parse("2026-11-19T00:00:00Z");
+// A fitted log-time slope extrapolated 4.5 days can run away on a noisy
+// window, so no trophy's median may move more than this many logit units
+// from its last observed rate (about a 12x move in odds either way).
+const MAX_MEDIAN_MOVE_LOGIT = 2.5;
 
 function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -202,6 +206,10 @@ function forecastCase(c) {
       medianLogit = lastLogit;
       sigma = 1.0;
     }
+
+    // Guard: never let a trend extrapolation move the median absurdly
+    // far from the last observed rate (see MAX_MEDIAN_MOVE_LOGIT).
+    medianLogit = clamp(medianLogit, lastLogit - MAX_MEDIAN_MOVE_LOGIT, lastLogit + MAX_MEDIAN_MOVE_LOGIT);
 
     // Platinum and the ~100% intro trophy need clamps, not trends.
     if (trophy.tier === "platinum") medianLogit = Math.min(medianLogit, logit(Math.max(lastRate * 1.6, 0.05)));
